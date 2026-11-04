@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PathoMaster - Advanced Pathology Review Platform</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- React & ReactDOM CDN -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <!-- Babel standalone for JSX parsing -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .glass-panel { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(12px); }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .card-flip-container { perspective: 1000px; }
+        .card-flip-inner { transition: transform 0.6s; transform-style: preserve-3d; }
+        .card-flipped { transform: rotateY(180deg); }
+        .card-front, .card-back { backface-visibility: hidden; position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+        .card-back { transform: rotateY(180deg); }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased min-h-screen">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        // Sample Comprehensive Pathology Data
+        const STUDY_TOPICS = [
+            {
+                id: 'gen-path-1',
+                category: 'General Pathology',
+                title: 'Cellular Injury & Adaptation',
+                difficulty: 'High-Yield',
+                summary: 'Core concepts of hypertrophy, hyperplasia, atrophy, metaplasia, and mechanisms of irreversible necrosis vs apoptosis.',
+                keyConcepts: [
+                    'Hypertrophy: Increase in cell size (e.g., left ventricular hypertrophy in hypertension).',
+                    'Hyperplasia: Increase in number of cells (e.g., benign prostatic hyperplasia, endometrial hyperplasia).',
+                    'Metaplasia: Reprogramming of stem cells resulting in replacement of one mature cell type by another (e.g., Barrett esophagus: squamous to columnar with goblet cells).',
+                    'Atrophy: Decrease in cell size and number (via ubiquitin-proteasome pathway & autophagy).'
+                ],
+                histologyNotes: 'Look for nuclear pyknosis (shrinkage/darkening), karyorrhexis (fragmentation), and karyolysis (dissolution) in necrotic cells.',
+                clinicalCorrelation: 'Ischemia vs Hypoxia: Ischemia is lack of blood flow; Hypoxia is oxygen deprivation. Ischemia leads to faster cell death due to lack of glucose delivery and waste removal.'
+            },
+            {
+                id: 'gen-path-2',
+                category: 'General Pathology',
+                title: 'Acute vs. Chronic Inflammation',
+                difficulty: 'High-Yield',
+                summary: 'Vascular changes, cellular events (neutrophils vs macrophages/lymphocytes), chemical mediators, and outcomes.',
+                keyConcepts: [
+                    'Acute Inflammation: Vasodilation (histamine, NO), increased permeability, neutrophil extravasation (margination, rolling via selectins, adhesion via integrins/ICAM-1, transmigration via PECAM-1).',
+                    'Chronic Inflammation: Infiltration by macrophages, lymphocytes, plasma cells; tissue destruction; repair via angiogenesis and fibrosis.',
+                    'Granulomatous Inflammation: Subtype of chronic inflammation characterized by epithelioid histiocytes surrounded by lymphocytes (e.g., TB, Sarcoidosis).'
+                ],
+                histologyNotes: 'Epithelioid cells are activated macrophages with abundant pink cytoplasm and slipper-shaped nuclei. Langhans giant cells feature horseshoe arrangement of nuclei.',
+                clinicalCorrelation: 'Elevated ESR and CRP are non-specific systemic markers of acute phase reactant production driven by IL-6 in the liver.'
+            },
+            {
+                id: 'hem-path-1',
+                category: 'Hematopathology',
+                title: 'Acute Myeloid Leukemia (AML) & APL',
+                difficulty: 'Advanced',
+                summary: 'Myeloblast proliferation, cytogenetics, Auer rods, and acute promyelocytic leukemia (APL) management.',
+                keyConcepts: [
+                    'Definition: >20% blasts in bone marrow.',
+                    'Auer Rods: Crystalline aggregates of myeloperoxidase (MPO) found in myeloblasts.',
+                    'APL (M3 subtype): Translocation t(15;17) fusing PML-RARA genes.',
+                    'Complication: High risk of Disseminated Intravascular Coagulation (DIC) due to release of tissue factor from promyelocyte granules.'
+                ],
+                histologyNotes: 'Peripheral smear shows large blast cells with delicate chromatin, prominent nucleoli, and Auer rods in APL.',
+                clinicalCorrelation: 'Treat APL urgently with All-Trans Retinoic Acid (ATRA) and arsenic trioxide to induce blast maturation and prevent fatal hemorrhage.'
+            },
+            {
+                id: 'ren-path-1',
+                category: 'Renal Pathology',
+                title: 'Glomerular Disease: Nephrotic vs Nephritic',
+                difficulty: 'High-Yield',
+                summary: 'Proteinuria (>3.5g/day), edema, hyperlipidemia (Nephrotic) vs Hematuria, RBC casts, hypertension, oliguria (Nephritic).',
+                keyConcepts: [
+                    'Minimal Change Disease: Effacement of podocyte foot processes on Electron Microscopy (EM); normal Light Microscopy (LM); responsive to steroids.',
+                    'Membranous Nephropathy: Thickened glomerular basement membrane (GBM), spike and dome appearance on silver stain, subepithelial immune deposits.',
+                    'Post-Streptococcal Glomerulonephritis (PSGN): Subepithelial "humps" on EM, starry-sky granular IF (IgG, C3).',
+                    'Rapidly Progressive Glomerulonephritis (RPGN): Crescentic formation in Bowman space (parietal epithelial cells and macrophages).'
+                ],
+                histologyNotes: 'Crescents on LM indicate severe GBM rupture. Silver stains highlight GBM thickening or basement membrane spikes.',
+                clinicalCorrelation: 'Nephrotic patients are at increased risk of thromboembolism due to loss of Antithrombin III in urine.'
+            },
+            {
+                id: 'card-path-1',
+                category: 'Cardiovascular Pathology',
+                title: 'Myocardial Infarction Timeline & Complications',
+                difficulty: 'High-Yield',
+                summary: 'Histological changes, serum biomarkers, and structural complications following coronary artery occlusion.',
+                keyConcepts: [
+                    '0-4 hours: Minimal histological change; wavy fibers at margin.',
+                    '4-24 hours: Coagulative necrosis begins, contraction bands, dark mottling.',
+                    '1-3 days: Dense neutrophil infiltrate, yellow-tan infarct area.',
+                    '3-14 days: Macrophages clean up debris, granulation tissue formation (highest risk of free wall rupture, papillary muscle rupture, VSD).',
+                    '2+ weeks: Dense collagenous scar tissue.'
+                ],
+                histologyNotes: 'Contraction band necrosis appears as hyper-eosinophilic transverse bands across cardiac myocytes due to calcium influx.',
+                clinicalCorrelation: 'Dressler Syndrome (autoimmune pericarditis) occurs 2-8 weeks post-MI.'
+            }
+        ];
+
+        const FLASHCARDS = [
+            {
+                id: 'fc-1',
+                title: 'Reed-Sternberg Cell',
+                system: 'Hematopathology',
+                question: 'Identify the characteristic cell type described as "owl-eye" appearance with prominent eosinophilic nucleoli in a background of mixed inflammatory cells.',
+                answer: 'Reed-Sternberg (RS) Cell in Classical Hodgkin Lymphoma',
+                keyFeatures: [
+                    'Binucleated or bilobed nucleus ("owl eyes")',
+                    'CD30+ and CD15+ positivity on IHC',
+                    'Secretes cytokines attracting lymphocytes, eosinophils, and plasma cells'
+                ],
+                imagePlaceholder: 'bi-eye-fill',
+                color: 'bg-indigo-50 border-indigo-200'
+            },
+            {
+                id: 'fc-2',
+                title: 'Psammoma Bodies',
+                system: 'Endocrine / Surgical Pathology',
+                question: 'What are concentric lamellated calcified structures found in specific tumors?',
+                answer: 'Psammoma Bodies',
+                keyFeatures: [
+                    'Concentric calcifications formed by single cell necrosis',
+                    'Mnemonic "PSaMMoma": Papillary thyroid carcinoma, Serous cystadenocarcinoma of ovary, Meningioma, Mesothelioma',
+                    'Basophilic appearance on H&E stain'
+                ],
+                imagePlaceholder: 'bi-circle-half',
+                color: 'bg-amber-50 border-amber-200'
+            },
+            {
+                id: 'fc-3',
+                title: 'Aschoff Bodies & Anitschkow Cells',
+                system: 'Cardiovascular Pathology',
+                question: 'Identify the pathognomonic myocardial lesion composed of granulomatous focus with large macrophages having "caterpillar-like" chromatin.',
+                answer: 'Aschoff Bodies with Anitschkow Cells (Acute Rheumatic Fever)',
+                keyFeatures: [
+                    'Aschoff body: Fibrinoid necrosis surrounded by lymphocytes and activated histiocytes',
+                    'Anitschkow cells: Macrophages with ribbon-like wavy chromatin pattern',
+                    'Associated with Group A Strep pharyngitis'
+                ],
+                imagePlaceholder: 'bi-heart-pulse-fill',
+                color: 'bg-rose-50 border-rose-200'
+            },
+            {
+                id: 'fc-4',
+                title: 'Kimmelstiel-Wilson Nodules',
+                system: 'Renal Pathology',
+                question: 'What lesion is characterized by nodular intercapillary glomerulosclerosis with PAS-positive hyaline deposits?',
+                answer: 'Kimmelstiel-Wilson Nodules (Diabetic Nephropathy)',
+                keyFeatures: [
+                    'Nodular mesangial expansion',
+                    'Non-enzymatic glycation of efferent arterioles leading to hyperfiltration',
+                    'Leading cause of End-Stage Renal Disease (ESRD) in the US'
+                ],
+                imagePlaceholder: 'bi-droplet-half',
+                color: 'bg-teal-50 border-teal-200'
+            },
+            {
+                id: 'fc-5',
+                title: 'Mallory-Denk Bodies',
+                system: 'Gastrointestinal / Liver',
+                question: 'What intracellular intracytoplasmic inclusions composed of damaged cytokeratin intermediate filaments are characteristic of liver injury?',
+                answer: 'Mallory-Denk Bodies (Alcoholic Hepatitis)',
+                keyFeatures: [
+                    'Rope-like eosinophilic (pink) cytoplasmic inclusions',
+                    'Composed of hyperphosphorylated cytokeratin 8/18',
+                    'Seen in Alcoholic Hepatitis, NASH, and Wilson Disease'
+                ],
+                imagePlaceholder: 'bi-capsule',
+                color: 'bg-emerald-50 border-emerald-200'
+            }
+        ];
+
+        const QUIZ_QUESTIONS = [
+            {
+                id: 'q1',
+                category: 'Gastrointestinal Pathology',
+                question: 'A 48-year-old male presenting with chronic gastroesophageal reflux undergoes endoscopy. Biopsy of the distal esophagus shows distal columnar epithelium with intestinal-type goblet cells replacing the normal stratified squamous epithelium. What is the correct pathologic diagnosis and primary risk?',
+                options: [
+                    'Squamous Cell Carcinoma in situ; risk of esophageal varices',
+                    'Barrett Esophagus; risk of Esophageal Adenocarcinoma',
+                    'Eosinophilic Esophagitis; risk of achalasia',
+                    'Mallory-Weiss Syndrome; risk of Boerhaave perforation'
+                ],
+                correctAnswer: 1,
+                explanation: 'Barrett Esophagus is a classic example of columnar metaplasia (squamous to columnar epithelium with goblet cells) induced by chronic acid reflux. It is a major risk factor for Esophageal Adenocarcinoma.'
+            },
+            {
+                id: 'q2',
+                category: 'Hematopathology',
+                question: 'A 62-year-old male presents with bone pain, fatigue, and recurrent infections. Serum protein electrophoresis (SPEP) shows a sharp monoclonal spike (M-protein). Bone marrow aspirate reveals >15% plasma cells with eccentric nuclei and abundant basophilic cytoplasm. Which kidney lesion is most characteristic of this disorder?',
+                options: [
+                    'Membranous Nephropathy',
+                    'Myeloma Cast Nephropathy (Bence Jones proteinuria)',
+                    'Minimal Change Disease',
+                    'Diffuse Proliferative Glomerulonephritis'
+                ],
+                correctAnswer: 1,
+                explanation: 'Multiple Myeloma is characterized by monoclonal immunoglobulin light chain production (Bence Jones proteins). Free light chains filtered into renal tubules precipitate with Tamm-Horsfall protein, forming eosinophilic casts causing tubule obstruction and cast nephropathy.'
+            },
+            {
+                id: 'q3',
+                category: 'Pulmonary Pathology',
+                question: 'A non-smoker 35-year-old woman presents with shortness of breath, hilar lymphadenopathy on chest X-ray, and hypercalcemia. Non-caseating granulomas are observed on transbronchial biopsy. What is the underlying cause of hypercalcemia in this condition?',
+                options: [
+                    'PTH-related peptide (PTHrp) secretion by tumor',
+                    '1-alpha-hydroxylase expression by epithelioid macrophages activating Vitamin D',
+                    'Direct osteolytic bone destruction by malignant plasma cells',
+                    'Secondary hyperparathyroidism due to chronic renal failure'
+                ],
+                correctAnswer: 1,
+                explanation: 'In Sarcoidosis, activated epithelioid macrophages inside non-caseating granulomas express 1-alpha-hydroxylase, converting 25-OH Vitamin D to active 1,25-(OH)2 Vitamin D3 independent of PTH regulation, causing hypercalcemia and hypercalciuria.'
+            },
+            {
+                id: 'q4',
+                category: 'Neuropathology',
+                question: 'Brain autopsy of a 72-year-old female with progressive memory loss and cognitive decline reveals extracellular neurofibrillary amyloid plaques and intracellular hyperphosphorylated tau neurofibrillary tangles. What protein composes the core of these extracellular plaques?',
+                options: [
+                    'Alpha-synuclein',
+                    'Amyloid Beta (Aβ) derived from APP',
+                    'PrPSc prion protein',
+                    'TDP-43'
+                ],
+                correctAnswer: 1,
+                explanation: 'Alzheimer Disease pathology features extracellular senile plaques composed of Amyloid Beta (Aβ) peptides cleavage products of Amyloid Precursor Protein (APP), and intracellular tangles of hyperphosphorylated Tau protein.'
+            }
+        ];
+
+        const CASE_VIGNETTES = [
+            {
+                id: 'case-1',
+                title: 'Case #101: Acute Abdominal Pain & Elevated Lipase',
+                patientInfo: '52-year-old male with long history of alcohol intake presents with severe epigastric pain radiating to the back, nausea, and persistent vomiting.',
+                vitals: 'BP 105/68 mmHg, HR 112 bpm, Temp 38.2°C',
+                labs: [
+                    { test: 'Serum Amylase', value: '850 U/L', range: '30-110 U/L', status: 'high' },
+                    { test: 'Serum Lipase', value: '1420 U/L', range: '10-140 U/L', status: 'high' },
+                    { test: 'Calcium', value: '7.2 mg/dL', range: '8.5-10.2 mg/dL', status: 'low' },
+                    { test: 'WBC', value: '16.5 x 10^3/µL', range: '4.5-11.0 x 10^3/µL', status: 'high' }
+                ],
+                pathologyDescription: 'Grossly, the pancreas appears swollen with areas of chalky-white fat necrosis. Microscopically, enzymatic auto-digestion of pancreatic parenchyma with neutrophil infiltration, saponification of peri-pancreatic adipose tissue, and vessel thrombosis is observed.',
+                questions: [
+                    {
+                        q: 'What type of necrosis is responsible for the "chalky-white" gross appearance?',
+                        options: ['Coagulative Necrosis', 'Liquefactive Necrosis', 'Fat Necrosis (Saponification)', 'Caseous Necrosis'],
+                        answer: 2,
+                        explanation: 'Pancreatic lipase releases free fatty acids from adipocytes, which complex with calcium ions to form insoluble calcium soaps (fat saponification), producing chalky-white deposits.'
+                    },
+                    {
+                        q: 'Why does the patient develop hypocalcemia in this acute setting?',
+                        options: [
+                            'Excess parathyroid hormone excretion',
+                            'Precipitation and binding of serum calcium by fatty acids (saponification)',
+                            'Renal loss of calcium due to tubular necrosis',
+                            'Vitamin D deficiency'
+                        ],
+                        answer: 1,
+                        explanation: 'Saponification consumes circulating ionized calcium into insoluble fatty acid soaps in retroperitoneal fat spaces, resulting in hypocalcemia.'
+                    }
+                ],
+                finalDiagnosis: 'Acute Pancreatitis with Enzymatic Fat Necrosis',
+                teachingPoint: 'Acute pancreatitis involves premature intracellular activation of trypsinogen to trypsin, triggering activation of digestive zymogens, autodigestion, fat necrosis, and severe localized and systemic inflammation.'
+            },
+            {
+                id: 'case-2',
+                title: 'Case #102: Painless Lymphadenopathy in a Young Adult',
+                patientInfo: '24-year-old female presents with painless cervical lymph node enlargement, low-grade night sweats, and 5kg weight loss over 2 months.',
+                vitals: 'BP 118/76 mmHg, HR 78 bpm, Temp 37.6°C',
+                labs: [
+                    { test: 'Hemoglobin', value: '11.1 g/dL', range: '12.0-15.5 g/dL', status: 'low' },
+                    { test: 'ESR', value: '68 mm/hr', range: '0-20 mm/hr', status: 'high' },
+                    { test: 'LDH', value: '340 U/L', range: '140-280 U/L', status: 'high' }
+                ],
+                pathologyDescription: 'Excisional node biopsy shows nodular collagen bands circumscribing cellular nodules. High-power examination shows Reed-Sternberg variant cells (lacunar cells) in a background of lymphocytes, eosinophils, and histiocytes.',
+                questions: [
+                    {
+                        q: 'Which subtype of Hodgkin Lymphoma is most probable given the nodular collagen fibrous bands and young female demographic?',
+                        options: ['Nodular Sclerosis Hodgkin Lymphoma', 'Mixed Cellularity Hodgkin Lymphoma', 'Lymphocyte Depleted Hodgkin Lymphoma', 'Burkitt Lymphoma'],
+                        answer: 0,
+                        explanation: 'Nodular Sclerosis is the most common subtype of Hodgkin Lymphoma (~70% of cases), classic in young females, featuring collagen bands dividing nodes into nodules and lacunar variant Reed-Sternberg cells.'
+                    }
+                ],
+                finalDiagnosis: 'Nodular Sclerosis Hodgkin Lymphoma (NSHL)',
+                teachingPoint: 'Hodgkin Lymphoma diagnosis requires identification of Reed-Sternberg cells (CD15+, CD30+). Nodular Sclerosis carries an excellent prognosis with modern chemoradiation therapy.'
+            }
+        ];
+
+        // Main App Component
+        function PathologyApp() {
+            const [activeTab, setActiveTab] = useState('study');
+            const [searchQuery, setSearchQuery] = useState('');
+            const [selectedCategory, setSelectedCategory] = useState('All');
+            const [savedBookmarks, setSavedBookmarks] = useState([]);
+            
+            // Quiz State
+            const [quizIndex, setQuizIndex] = useState(0);
+            const [selectedOption, setSelectedOption] = useState(null);
+            const [isSubmitted, setIsSubmitted] = useState(false);
+            const [quizScore, setQuizScore] = useState(0);
+
+            // Flashcard State
+            const [cardIndex, setCardIndex] = useState(0);
+            const [isFlipped, setIsFlipped] = useState(false);
+
+            // Case Vignette State
+            const [activeCaseId, setActiveCaseId] = useState(CASE_VIGNETTES[0].id);
+            const [caseAnswers, setCaseAnswers] = useState({});
+
+            const toggleBookmark = (id) => {
+                if (savedBookmarks.includes(id)) {
+                    setSavedBookmarks(savedBookmarks.filter(bId => bId !== id));
+                } else {
+                    setSavedBookmarks([...savedBookmarks, id]);
+                }
+            };
+
+            const filteredStudyTopics = useMemo(() => {
+                return STUDY_TOPICS.filter(topic => {
+                    const matchesCategory = selectedCategory === 'All' || topic.category === selectedCategory;
+                    const matchesSearch = topic.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                                          topic.summary.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                          topic.keyConcepts.some(c => c.toLowerCase().includes(searchQuery.toLowerCase()));
+                    return matchesCategory && matchesSearch;
+                });
+            }, [searchQuery, selectedCategory]);
+
+            return (
+                <div className="min-h-screen flex flex-col bg-slate-100">
+                    {/* Top Navigation Bar */}
+                    <header className="bg-slate-900 text-white shadow-lg sticky top-0 z-50">
+                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+                            <div className="flex items-center space-x-3">
+                                <div className="bg-indigo-600 p-2 rounded-lg text-white">
+                                    <i className="fa-solid fa-microscope text-xl"></i>
+                                </div>
+                                <div>
+                                    <h1 className="font-bold text-lg leading-tight">PathoMaster Pro</h1>
+                                    <p className="text-xs text-indigo-300">Pathology & Histology Learning Suite</p>
+                                </div>
+                            </div>
+
+                            {/* Tab Switcher */}
+                            <nav className="hidden md:flex space-x-1 bg-slate-800 p-1 rounded-xl">
+                                {[
+                                    { id: 'study', label: 'High-Yield Notes', icon: 'fa-book-open' },
+                                    { id: 'quiz', label: 'Interactive Quiz', icon: 'fa-circle-question' },
+                                    { id: 'cards', label: 'Flashcards', icon: 'fa-clone' },
+                                    { id: 'cases', label: 'Case Vignettes', icon: 'fa-user-doctor' }
+                                ].map(tab => (
+                                    <button
+                                        key={tab.id}
+                                        onClick={() => setActiveTab(tab.id)}
+                                        className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                                            activeTab === tab.id 
+                                                ? 'bg-indigo-600 text-white shadow' 
+                                                : 'text-slate-300 hover:text-white hover:bg-slate-700'
+                                        }`}
+                                    >
+                                        <i className={`fa-solid ${tab.icon}`}></i>
+                                        <span>{tab.label}</span>
+                                    </button>
+                                ))}
+                            </nav>
+
+                            <div className="flex items-center space-x-3">
+                                <span className="text-xs bg-slate-800 text-slate-300 px-3 py-1.5 rounded-full border border-slate-700">
+                                    <i className="fa-solid fa-bookmark text-amber-400 mr-1.5"></i>
+                                    {savedBookmarks.length} Saved
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Mobile Navigation */}
+                        <div className="md:hidden flex justify-around bg-slate-800 p-2 border-t border-slate-700">
+                            {[
+                                { id: 'study', icon: 'fa-book-open' },
+                                { id: 'quiz', icon: 'fa-circle-question' },
+                                { id: 'cards', icon: 'fa-clone' },
+                                { id: 'cases', icon: 'fa-user-doctor' }
+                            ].map(tab => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id)}
+                                    className={`p-2 rounded-lg text-lg ${activeTab === tab.id ? 'text-indigo-400 font-bold' : 'text-slate-400'}`}
+                                >
+                                    <i className={`fa-solid ${tab.icon}`}></i>
+                                </button>
+                            ))}
+                        </div>
+                    </header>
+
+                    {/* Main Content Area */}
+                    <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+                        {/* TAB 1: STUDY NOTES */}
+                        {activeTab === 'study' && (
+                            <div className="space-y-6">
+                                {/* Filter Bar */}
+                                <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col md:flex-row gap-4 items-center justify-between">
+                                    <div className="relative w-full md:w-96">
+                                        <i className="fa-solid fa-magnifying-glass absolute left-3 top-3.5 text-slate-400"></i>
+                                        <input
+                                            type="text"
+                                            placeholder="Search topics, mechanisms, histology..."
+                                            value={searchQuery}
+                                            onChange={(e) => setSearchQuery(e.target.value)}
+                                            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                        />
+                                    </div>
+                                    <div className="flex items-center space-x-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
+                                        {['All', 'General Pathology', 'Hematopathology', 'Renal Pathology', 'Cardiovascular Pathology'].map(cat => (
+                                            <button
+                                                key={cat}
+                                                onClick={() => setSelectedCategory(cat)}
+                                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition ${
+                                                    selectedCategory === cat 
+                                                        ? 'bg-indigo-600 text-white' 
+                                                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                                }`}
+                                            >
+                                                {cat}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Study Topic Cards Grid */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {filteredStudyTopics.map(topic => (
+                                        <div key={topic.id} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition flex flex-col">
+                                            <div className="p-5 flex-1 space-y-4">
+                                                <div className="flex items-start justify-between">
+                                                    <div>
+                                                        <span className="text-xs font-bold text-indigo-600 uppercase tracking-wider bg-indigo-50 px-2.5 py-1 rounded-md">
+                                                            {topic.category}
+                                                        </span>
+                                                        <h3 className="text-xl font-bold text-slate-800 mt-2">{topic.title}</h3>
+                                                    </div>
+                                                    <button 
+                                                        onClick={() => toggleBookmark(topic.id)}
+                                                        className="text-slate-400 hover:text-amber-500 transition"
+                                                    >
+                                                        <i className={`fa-${savedBookmarks.includes(topic.id) ? 'solid text-amber-500' : 'regular'} fa-bookmark text-lg`}></i>
+                                                    </button>
+                                                </div>
+
+                                                <p className="text-slate-600 text-sm">{topic.summary}</p>
+
+                                                <div className="space-y-2">
+                                                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wide">Key Concepts</h4>
+                                                    <ul className="space-y-1.5">
+                                                        {topic.keyConcepts.map((concept, idx) => (
+                                                            <li key={idx} className="text-xs text-slate-700 flex items-start space-x-2">
+                                                                <i className="fa-solid fa-check text-emerald-500 mt-0.5"></i>
+                                                                <span>{concept}</span>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+
+                                                <div className="bg-amber-50 border-l-4 border-amber-400 p-3 rounded-r-lg text-xs text-amber-900">
+                                                    <strong className="font-semibold block mb-0.5">Histology Landmark:</strong>
+                                                    {topic.histologyNotes}
+                                                </div>
+                                            </div>
+
+                                            <div className="bg-slate-50 border-t border-slate-100 p-3 px-5 text-xs text-slate-500 flex items-center justify-between">
+                                                <span><i className="fa-solid fa-stethoscope mr-1"></i> {topic.clinicalCorrelation}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* TAB 2: INTERACTIVE QUIZ */}
+                        {activeTab === 'quiz' && (
+                            <div className="max-w-3xl mx-auto space-y-6">
+                                <div className="bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden">
+                                    <div className="bg-indigo-900 text-white p-6 flex justify-between items-center">
+                                        <div>
+                                            <span className="text-xs text-indigo-300 font-semibold uppercase">Board-Style Practice Question</span>
+                                            <h3 className="text-lg font-bold">Question {quizIndex + 1} of {QUIZ_QUESTIONS.length}</h3>
+                                        </div>
+                                        <div className="text-right">
+                                            <span className="text-2xl font-black text-indigo-300">{quizScore}</span>
+                                            <span className="text-xs text-indigo-200 block">Score</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="p-6 space-y-6">
+                                        <div className="text-xs font-semibold text-indigo-600 uppercase bg-indigo-50 inline-block px-2.5 py-1 rounded">
+                                            {QUIZ_QUESTIONS[quizIndex].category}
+                                        </div>
+
+                                        <p className="text-slate-800 text-base leading-relaxed font-medium">
+                                            {QUIZ_QUESTIONS[quizIndex].question}
+                                        </p>
+
+                                        <div className="space-y-3">
+                                            {QUIZ_QUESTIONS[quizIndex].options.map((opt, idx) => {
+                                                let btnClass = "w-full text-left p-4 rounded-xl border text-sm font-medium transition flex items-center justify-between ";
+                                                if (isSubmitted) {
+                                                    if (idx === QUIZ_QUESTIONS[quizIndex].correctAnswer) {
+                                                        btnClass += "bg-emerald-50 border-emerald-500 text-emerald-900 font-bold";
+                                                    } else if (idx === selectedOption) {
+                                                        btnClass += "bg-rose-50 border-rose-500 text-rose-900";
+                                                    } else {
+                                                        btnClass += "bg-slate-50 border-slate-200 text-slate-400";
+                                                    }
+                                                } else {
+                                                    if (selectedOption === idx) {
+                                                        btnClass += "bg-indigo-50 border-indigo-500 text-indigo-900 shadow-sm";
+                                                    } else {
+                                                        btnClass += "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100";
+                                                    }
+                                                }
+
+                                                return (
+                                                    <button
+                                                        key={idx}
+                                                        disabled={isSubmitted}
+                                                        onClick={() => setSelectedOption(idx)}
+                                                        className={btnClass}
+                                                    >
+                                                        <span>{opt}</span>
+                                                        {isSubmitted && idx === QUIZ_QUESTIONS[quizIndex].correctAnswer && (
+                                                            <i className="fa-solid fa-circle-check text-emerald-600 text-lg"></i>
+                                                        )}
+                                                        {isSubmitted && selectedOption === idx && idx !== QUIZ_QUESTIONS[quizIndex].correctAnswer && (
+                                                            <i className="fa-solid fa-circle-xmark text-rose-500 text-lg"></i>
+                                                        )}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+
+                                        {isSubmitted && (
+                                            <div className="bg-slate-900 text-slate-100 p-4 rounded-xl text-sm space-y-2">
+                                                <h5 className="font-bold text-indigo-400 flex items-center space-x-2">
+                                                    <i className="fa-solid fa-lightbulb"></i>
+                                                    <span>Explanation</span>
+                                                </h5>
+                                                <p className="text-slate-300">{QUIZ_QUESTIONS[quizIndex].explanation}</p>
+                                            </div>
+                                        )}
+
+                                        <div className="flex justify-between items-center pt-4 border-t border-slate-100">
+                                            {!isSubmitted ? (
+                                                <button
+                                                    disabled={selectedOption === null}
+                                                    onClick={() => {
+                                                        setIsSubmitted(true);
+                                                        if (selectedOption === QUIZ_QUESTIONS[quizIndex].correctAnswer) {
+                                                            setQuizScore(s => s + 10);
+                                                        }
+                                                    }}
+                                                    className="w-full sm:w-auto px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                                                >
+                                                    Submit Answer
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    onClick={() => {
+                                                        setIsSubmitted(false);
+                                                        setSelectedOption(null);
+                                                        setQuizIndex((quizIndex + 1) % QUIZ_QUESTIONS.length);
+                                                    }}
+                                                    className="w-full sm:w-auto px-6 py-2.5 bg-slate-900 text-white font-bold rounded-lg hover:bg-slate-800 transition flex items-center justify-center space-x-2"
+                                                >
+                                                    <span>Next Question</span>
+                                                    <i className="fa-solid fa-arrow-right"></i>
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* TAB 3: FLASHCARDS */}
+                        {activeTab === 'cards' && (
+                            <div className="max-w-2xl mx-auto space-y-6">
+                                <div className="text-center">
+                                    <h2 className="text-2xl font-bold text-slate-800">Histology & Pathology Identification</h2>
+                                    <p className="text-sm text-slate-500">Click card to flip and review diagnosis & key findings.</p>
+                                </div>
+
+                                {/* Flip Card */}
+                                <div className="card-flip-container h-80 w-full cursor-pointer" onClick={() => setIsFlipped(!isFlipped)}>
+                                    <div className={`card-flip-inner relative w-full h-full ${isFlipped ? 'card-flipped' : ''}`}>
+                                        {/* Front */}
+                                        <div className="card-front bg-white border-2 border-indigo-200 rounded-2xl shadow-lg p-8 flex flex-col justify-between items-center text-center">
+                                            <span className="text-xs font-bold uppercase tracking-wide bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full">
+                                                {FLASHCARDS[cardIndex].system}
+                                            </span>
+                                            
+                                            <div className="space-y-4 my-auto">
+                                                <div className="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto text-2xl">
+                                                    <i className={`fa-solid ${FLASHCARDS[cardIndex].imagePlaceholder}`}></i>
+                                                </div>
+                                                <h3 className="text-xl font-bold text-slate-800">{FLASHCARDS[cardIndex].question}</h3>
+                                            </div>
+
+                                            <span className="text-xs text-slate-400 font-semibold flex items-center space-x-1">
+                                                <i className="fa-solid fa-rotate-right"></i>
+                                                <span>Click to reveal answer</span>
+                                            </span>
+                                        </div>
+
+                                        {/* Back */}
+                                        <div className="card-back bg-slate-900 text-white rounded-2xl shadow-lg p-8 flex flex-col justify-between">
+                                            <div>
+                                                <span className="text-xs text-emerald-400 font-bold uppercase tracking-wider block mb-2">Diagnosis</span>
+                                                <h3 className="text-2xl font-black text-white mb-4">{FLASHCARDS[cardIndex].answer}</h3>
+                                                
+                                                <div className="space-y-2">
+                                                    <h4 className="text-xs font-bold text-slate-400 uppercase">Diagnostic Features:</h4>
+                                                    <ul className="space-y-1.5">
+                                                        {FLASHCARDS[cardIndex].keyFeatures.map((feat, idx) => (
+                                                            <li key={idx} className="text-xs text-slate-300 flex items-start space-x-2">
+                                                                <i className="fa-solid fa-circle-check text-emerald-400 mt-0.5"></i>
+                                                                <span>{feat}</span>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            </div>
+
+                                            <div className="text-xs text-slate-400 text-right">
+                                                <span>Card {cardIndex + 1} of {FLASHCARDS.length}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Navigation */}
+                                <div className="flex items-center justify-between">
+                                    <button
+                                        onClick={() => {
+                                            setIsFlipped(false);
+                                            setCardIndex((cardIndex - 1 + FLASHCARDS.length) % FLASHCARDS.length);
+                                        }}
+                                        className="px-4 py-2 bg-white border border-slate-300 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-50 shadow-sm"
+                                    >
+                                        <i className="fa-solid fa-chevron-left mr-2"></i> Previous
+                                    </button>
+
+                                    <span className="text-xs text-slate-500 font-semibold">
+                                        {cardIndex + 1} / {FLASHCARDS.length}
+                                    </span>
+
+                                    <button
+                                        onClick={() => {
+                                            setIsFlipped(false);
+                                            setCardIndex((cardIndex + 1) % FLASHCARDS.length);
+                                        }}
+                                        className="px-4 py-2 bg-indigo-600 rounded-lg text-sm font-semibold text-white hover:bg-indigo-700 shadow-sm"
+                                    >
+                                        Next <i className="fa-solid fa-chevron-right ml-2"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* TAB 4: CASE VIGNETTES */}
+                        {activeTab === 'cases' && (
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                {/* Case Selection Side Bar */}
+                                <div className="space-y-3">
+                                    <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wide">Clinical Vignettes</h3>
+                                    {CASE_VIGNETTES.map(c => (
+                                        <button
+                                            key={c.id}
+                                            onClick={() => setActiveCaseId(c.id)}
+                                            className={`w-full text-left p-4 rounded-xl border transition ${
+                                                activeCaseId === c.id
+                                                    ? 'bg-indigo-600 text-white border-indigo-600 shadow'
+                                                    : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                                            }`}
+                                        >
+                                            <h4 className="font-bold text-sm">{c.title}</h4>
+                                            <p className={`text-xs mt-1 line-clamp-2 ${activeCaseId === c.id ? 'text-indigo-100' : 'text-slate-500'}`}>
+                                                {c.patientInfo}
+                                            </p>
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {/* Active Case Details */}
+                                {(() => {
+                                    const currentCase = CASE_VIGNETTES.find(c => c.id === activeCaseId);
+                                    if (!currentCase) return null;
+
+                                    return (
+                                        <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
+                                            <div>
+                                                <h2 className="text-2xl font-bold text-slate-800">{currentCase.title}</h2>
+                                                <p className="text-sm text-slate-600 mt-1">{currentCase.patientInfo}</p>
+                                            </div>
+
+                                            {/* Lab Results Table */}
+                                            <div className="space-y-2">
+                                                <h4 className="text-xs font-bold text-slate-400 uppercase">Laboratory & Vital Findings</h4>
+                                                <div className="overflow-x-auto">
+                                                    <table className="w-full text-xs text-left border-collapse">
+                                                        <thead>
+                                                            <tr className="bg-slate-50 text-slate-500 border-b border-slate-200">
+                                                                <th className="p-2">Test</th>
+                                                                <th className="p-2">Value</th>
+                                                                <th className="p-2">Reference Range</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {currentCase.labs.map((lab, i) => (
+                                                                <tr key={i} className="border-b border-slate-100">
+                                                                    <td className="p-2 font-medium">{lab.test}</td>
+                                                                    <td className={`p-2 font-bold ${lab.status === 'high' ? 'text-rose-600' : lab.status === 'low' ? 'text-amber-600' : 'text-slate-700'}`}>
+                                                                        {lab.value}
+                                                                    </td>
+                                                                    <td className="p-2 text-slate-400">{lab.range}</td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+
+                                            {/* Pathology Findings */}
+                                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-1">
+                                                <h4 className="text-xs font-bold text-indigo-600 uppercase">Pathology Description</h4>
+                                                <p className="text-xs text-slate-700 leading-relaxed">{currentCase.pathologyDescription}</p>
+                                            </div>
+
+                                            {/* Interactive Case Questions */}
+                                            <div className="space-y-4">
+                                                <h4 className="text-sm font-bold text-slate-800">Case Diagnostic Questions</h4>
+                                                {currentCase.questions.map((q, qIdx) => {
+                                                    const key = `${currentCase.id}-${qIdx}`;
+                                                    const userAns = caseAnswers[key];
+
+                                                    return (
+                                                        <div key={qIdx} className="bg-slate-50 p-4 rounded-xl space-y-3">
+                                                            <p className="text-xs font-bold text-slate-800">{qIdx + 1}. {q.q}</p>
+                                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                                {q.options.map((opt, oIdx) => (
+                                                                    <button
+                                                                        key={oIdx}
+                                                                        onClick={() => setCaseAnswers({ ...caseAnswers, [key]: oIdx })}
+                                                                        className={`p-2.5 text-xs text-left rounded-lg border transition ${
+                                                                            userAns === oIdx
+                                                                                ? oIdx === q.answer
+                                                                                    ? 'bg-emerald-100 border-emerald-500 text-emerald-900 font-bold'
+                                                                                    : 'bg-rose-100 border-rose-500 text-rose-900 font-bold'
+                                                                                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+                                                                        }`}
+                                                                    >
+                                                                        {opt}
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                            {userAns !== undefined && (
+                                                                <p className="text-xs text-slate-600 bg-white p-2.5 rounded border border-slate-200 mt-2">
+                                                                    <strong className="text-indigo-600">Explanation: </strong>
+                                                                    {q.explanation}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+
+                                            {/* Key Takeaway Banner */}
+                                            <div className="bg-indigo-900 text-white p-4 rounded-xl space-y-1">
+                                                <h5 className="text-xs font-bold text-indigo-300 uppercase">Diagnosis & Clinical Pearl</h5>
+                                                <h4 className="font-bold text-base">{currentCase.finalDiagnosis}</h4>
+                                                <p className="text-xs text-slate-300 leading-relaxed">{currentCase.teachingPoint}</p>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+                        )}
+                    </main>
+
+                    {/* Footer */}
+                    <footer className="bg-slate-900 text-slate-400 py-6 text-center text-xs border-t border-slate-800 mt-12">
+                        <p>© 2026 PathoMaster Review Platform. Designed for Medical Education & Board Preparation.</p>
+                    </footer>
+                </div>
+            );
+        }
+
+        ReactDOM.createRoot(document.getElementById('root')).render(<PathologyApp />);
+    </script>
+</body>
+</html>
